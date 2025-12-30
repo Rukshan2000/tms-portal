@@ -1,0 +1,7 @@
+
+services:
+  optiomax-web:
+    image: $APP_IMAGE_NAME:$VERSION
+    container_name: $APP_CONTAINER_NAME
+    ports:
+      - $APP_PRORT:3000
