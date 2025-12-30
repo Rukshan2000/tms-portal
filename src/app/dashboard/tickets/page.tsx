@@ -101,7 +101,10 @@ export default function TicketsPage() {
 
   const [requestReprint, { isLoading: isReprintLoading }] = useCreateReprintRequestMutation();
 
-  const tickets = ticketsData?.data || [];
+  // Memoize tickets array to prevent dependency changes
+  const tickets = useMemo(() => {
+    return ticketsData?.data || [];
+  }, [ticketsData?.data]);
 
   // Get operators based on field type
   const getOperatorsForField = (fieldValue: string) => {

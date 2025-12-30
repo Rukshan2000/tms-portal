@@ -130,7 +130,7 @@ export const useDeleteUserHandler = () => {
  */
 export const useUserManagement = (userId?: number) => {
   const fetchAll = useFetchUsers();
-  const fetchOne = userId ? useFetchUserById(userId) : null;
+  const fetchOne = useFetchUserById(userId || 0);
   const create = useCreateUserHandler();
   const update = useUpdateUserHandler();
   const deleteUser = useDeleteUserHandler();
@@ -140,8 +140,8 @@ export const useUserManagement = (userId?: number) => {
     users: fetchAll.users,
     total: fetchAll.total,
     isLoadingUsers: fetchAll.isLoading,
-    user: fetchOne?.user,
-    isLoadingUser: fetchOne?.isLoading,
+    user: userId ? fetchOne.user : null,
+    isLoadingUser: userId ? fetchOne.isLoading : false,
 
     // Write operations
     create,

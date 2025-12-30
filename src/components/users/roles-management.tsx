@@ -41,7 +41,11 @@ export function RolesManagement() {
 
   const [deleteRole, { isLoading: isDeleting }] = useDeleteRoleMutation();
 
-  const roles = rolesData?.data || [];
+  // Memoize roles array to prevent dependency changes
+  const roles = useMemo(() => {
+    return rolesData?.data || [];
+  }, [rolesData?.data]);
+  
   const total = rolesData?.pagination.total || 0;
 
   // Mobile roles with "show more"

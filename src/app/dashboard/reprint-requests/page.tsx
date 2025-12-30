@@ -131,7 +131,10 @@ export default function ReprintRequestsPage() {
 
   const workflows = workflowsData?.data || [];
 
-  const requests = requestsData?.data || [];
+  // Memoize requests array to prevent dependency changes
+  const requests = useMemo(() => {
+    return requestsData?.data || [];
+  }, [requestsData?.data]);
 
   // Filter requests by status
   const filteredRequests = useMemo(() => {
