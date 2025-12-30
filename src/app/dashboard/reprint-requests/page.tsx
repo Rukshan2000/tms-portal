@@ -73,7 +73,7 @@ const STATUS_CONFIG = {
   },
   approved: {
     label: 'Approved',
-    color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+    color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
     icon: CheckCircle,
   },
   rejected: {
@@ -86,7 +86,9 @@ const STATUS_CONFIG = {
     color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
     icon: CheckCircle,
   },
-};
+} as const;
+
+type StatusKey = keyof typeof STATUS_CONFIG;
 
 const REASON_LABELS: Record<string, string> = {
   damaged: 'Damaged Ticket',
@@ -267,6 +269,17 @@ export default function ReprintRequestsPage() {
     return REASON_LABELS[reason] || reason;
   };
 
+  const getDisplayStatus = (request: ReprintRequest): StatusKey => {
+    // If approval_status exists, map it to display status
+    if ((request as any).approval_status === 'APPROVED') {
+      return 'approved';
+    }
+    if ((request as any).approval_status === 'REJECTED') {
+      return 'rejected';
+    }
+    return (request.status as StatusKey);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -367,7 +380,8 @@ export default function ReprintRequestsPage() {
               {/* Mobile Card View */}
               <div className="md:hidden space-y-3">
                 {mobileRequests.map((request) => {
-                  const StatusIcon = STATUS_CONFIG[request.status].icon;
+                  const displayStatus = getDisplayStatus(request);
+                  const StatusIcon = STATUS_CONFIG[displayStatus].icon;
                   return (
                     <div
                       key={request.id}
@@ -379,9 +393,9 @@ export default function ReprintRequestsPage() {
                             <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded font-mono truncate">
                               {request.trace_no}
                             </code>
-                            <Badge className={STATUS_CONFIG[request.status].color}>
+                            <Badge className={STATUS_CONFIG[displayStatus].color}>
                               <StatusIcon className="w-3 h-3 mr-1" />
-                              {STATUS_CONFIG[request.status].label}
+                              {STATUS_CONFIG[displayStatus].label}
                             </Badge>
                           </div>
                           <p className="text-sm text-slate-600 dark:text-slate-400 mb-1">
@@ -410,7 +424,7 @@ export default function ReprintRequestsPage() {
                         >
                           <History className="w-4 h-4" />
                         </Button>
-                        {request.status === 'pending' && (
+                        {getDisplayStatus(request) === 'pending' && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -424,7 +438,7 @@ export default function ReprintRequestsPage() {
                             <GitBranch className="w-4 h-4" />
                           </Button>
                         )}
-                        {request.status === 'approved' && (
+                        {getDisplayStatus(request) === 'approved' && (
                           <Button
                             variant="outline"
                             size="sm"
@@ -475,7 +489,8 @@ export default function ReprintRequestsPage() {
                   </TableHeader>
                   <TableBody>
                     {paginatedRequests.map((request) => {
-                      const StatusIcon = STATUS_CONFIG[request.status].icon;
+                      const displayStatus = getDisplayStatus(request);
+                      const StatusIcon = STATUS_CONFIG[displayStatus].icon;
                       return (
                         <TableRow key={request.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <TableCell className="font-medium">#{request.id}</TableCell>
@@ -487,9 +502,9 @@ export default function ReprintRequestsPage() {
                           <TableCell className="text-sm">{getReasonLabel(request.reason)}</TableCell>
                           <TableCell className="text-sm font-medium">{request.requested_copies}</TableCell>
                           <TableCell>
-                            <Badge className={STATUS_CONFIG[request.status].color}>
+                            <Badge className={STATUS_CONFIG[displayStatus].color}>
                               <StatusIcon className="w-3 h-3 mr-1" />
-                              {STATUS_CONFIG[request.status].label}
+                              {STATUS_CONFIG[displayStatus].label}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-slate-500">
@@ -514,7 +529,7 @@ export default function ReprintRequestsPage() {
                               >
                                 <History className="w-4 h-4" />
                               </Button>
-                              {request.status === 'pending' && (
+                              {getDisplayStatus(request) === 'pending' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -527,7 +542,7 @@ export default function ReprintRequestsPage() {
                                   <GitBranch className="w-4 h-4" />
                                 </Button>
                               )}
-                              {request.status === 'approved' && (
+                              {getDisplayStatus(request) === 'approved' && (
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -632,8 +647,8 @@ export default function ReprintRequestsPage() {
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Status</p>
-                <Badge className={STATUS_CONFIG[selectedRequest.status].color}>
-                  {STATUS_CONFIG[selectedRequest.status].label}
+                <Badge className={STATUS_CONFIG[getDisplayStatus(selectedRequest)].color}>
+                  {STATUS_CONFIG[getDisplayStatus(selectedRequest)].label}
                 </Badge>
               </div>
 
@@ -696,7 +711,7 @@ export default function ReprintRequestsPage() {
             <Button variant="outline" onClick={() => setSelectedRequest(null)}>
               Close
             </Button>
-            {selectedRequest?.status === 'approved' && (
+            {selectedRequest && getDisplayStatus(selectedRequest) === 'approved' && (
               <Button
                 onClick={() => handleStatusUpdate(selectedRequest.id, 'completed')}
                 disabled={isUpdating}
@@ -867,31 +882,33 @@ export default function ReprintRequestsPage() {
             <div className="space-y-4">
               {/* Current Status */}
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-slate-500 mb-1">Workflow</p>
-                    <p className="font-medium">{approvalHistoryData.data.workflow_name || 'No workflow assigned'}</p>
-                  </div>
-                  <Badge className={
-                    approvalHistoryData.data.approval_status === 'APPROVED' 
-                      ? 'bg-green-100 text-green-800' 
+                <div className="mb-3">
+                  <p className="text-xs text-slate-500 mb-1">Approval Status</p>
+                  <Badge className={`
+                    ${approvalHistoryData.data.approval_status === 'APPROVED' 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300' 
                       : approvalHistoryData.data.approval_status === 'REJECTED'
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }>
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300'
+                      : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300'}
+                  `}>
                     {approvalHistoryData.data.approval_status}
                   </Badge>
                 </div>
-                {approvalHistoryData.data.current_node && (
-                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                {approvalHistoryData.data.current_node ? (
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
                     <p className="text-xs text-slate-500 mb-1">Current Stage</p>
-                    <p className="font-medium">{approvalHistoryData.data.current_node.name}</p>
-                    <p className="text-sm text-slate-500 mt-1">
-                      {approvalHistoryData.data.current_node.approved_count} / {approvalHistoryData.data.current_node.total_required} approvals
-                      ({approvalHistoryData.data.current_node.approval_type === 'ALL' ? 'All required' : 'Any one required'})
-                    </p>
+                    <p className="font-semibold text-slate-900 dark:text-white">{approvalHistoryData.data.current_node.name}</p>
+                    <div className="mt-2 space-y-1 text-sm">
+                      <p className="text-slate-600 dark:text-slate-400">
+                        <span className="font-medium">{approvalHistoryData.data.current_node.approved_count} / {approvalHistoryData.data.current_node.total_required}</span> approvals
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {approvalHistoryData.data.current_node.total_required - approvalHistoryData.data.current_node.approved_count} pending • 
+                        {approvalHistoryData.data.current_node.approval_type === 'ALL' ? 'All required' : 'Any one required'}
+                      </p>
+                    </div>
                   </div>
-                )}
+                ) : null}
               </div>
 
               {/* Approval Timeline */}
@@ -899,12 +916,12 @@ export default function ReprintRequestsPage() {
                 <div className="space-y-3">
                   <h4 className="font-medium text-sm">Approval Timeline</h4>
                   <div className="space-y-2">
-                    {approvalHistoryData.data.history.map((item, index) => (
+                    {approvalHistoryData.data.history.map((item: any, index: number) => (
                       <div 
                         key={index}
-                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700"
+                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/50"
                       >
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
                           item.status === 'APPROVED' 
                             ? 'bg-green-100 text-green-600' 
                             : item.status === 'REJECTED'
@@ -919,18 +936,25 @@ export default function ReprintRequestsPage() {
                             <Clock className="w-4 h-4" />
                           )}
                         </div>
-                        <div className="flex-1">
-                          <div className="flex items-center justify-between">
-                            <p className="font-medium text-sm">{item.user_name}</p>
-                            <Badge variant="outline" className="text-xs">
-                              Stage {item.node_order}: {item.node_name}
-                            </Badge>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col gap-1">
+                            <p className="font-semibold text-sm text-slate-900 dark:text-white">
+                              {item.user_name || 'Unknown User'}
+                            </p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="outline" className="text-xs">
+                                Stage {item.node_order}: {item.node_name}
+                              </Badge>
+                              <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                {item.status}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
-                            {item.status} • {new Date(item.approved_at).toLocaleString()}
+                          <p className="text-xs text-slate-500 mt-2">
+                            {item.approved_at ? new Date(item.approved_at).toLocaleString() : 'Pending'}
                           </p>
                           {item.comments && (
-                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 italic">
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 italic border-l-2 border-slate-300 dark:border-slate-600 pl-2">
                               &quot;{item.comments}&quot;
                             </p>
                           )}
@@ -946,12 +970,13 @@ export default function ReprintRequestsPage() {
                 </div>
               )}
             </div>
-          ) : (
+          ) : !approvalHistoryData?.data ? (
             <div className="text-center py-8 text-slate-500">
               <AlertCircle className="w-10 h-10 mx-auto mb-2 text-slate-300" />
-              <p>No workflow assigned to this request</p>
+              <p className="font-medium">No workflow assigned</p>
+              <p className="text-sm mt-1">Start an approval workflow to begin the approval process</p>
             </div>
-          )}
+          ) : null}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>
               Close
