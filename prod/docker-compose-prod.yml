@@ -1,7 +1,9 @@
 
 services:
-  optiomax-web:
-    image: $APP_IMAGE_NAME:$VERSION
-    container_name: $APP_CONTAINER_NAME
+  tms-web:
+    image: ghcr.io/rukshan2000/tms-portal:${VERSION}
+    container_name: tms-portal
     ports:
-      - $APP_PRORT:3000
+      - "3000:3000"
+    env_file:
+      - ./envs/temp.app.env
