@@ -11,6 +11,8 @@ import {
   Menu,
   X,
   Printer,
+  GitBranch,
+  ClipboardCheck,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -34,6 +36,11 @@ const menuItems = [
     title: 'Reprint Requests',
     icon: Printer,
     href: '/dashboard/reprint-requests',
+  },
+  {
+    title: 'Workflows',
+    icon: GitBranch,
+    href: '/dashboard/workflows',
   },
   {
     title: 'User Management',

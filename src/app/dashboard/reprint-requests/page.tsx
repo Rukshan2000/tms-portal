@@ -4,6 +4,8 @@ import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { 
   Loader2, 
   ChevronLeft, 
@@ -16,13 +18,23 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-  Filter
+  Filter,
+  GitBranch,
+  History,
 } from 'lucide-react';
 import { 
   useGetReprintRequestsQuery, 
   useUpdateReprintRequestStatusMutation,
   ReprintRequest 
 } from '@/store/services/reprintRequestApi';
+import {
+  useGetWorkflowsQuery,
+  useInitializeReprintWorkflowMutation,
+  useApproveReprintRequestMutation,
+  useGetReprintApprovalsQuery,
+} from '@/store/services/workflowApi';
+import { useSelector } from 'react-redux';
+import { RootState } from '@/store';
 import {
   Table,
   TableBody,
@@ -44,6 +56,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import {
   Tabs,
@@ -90,13 +103,33 @@ export default function ReprintRequestsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ReprintRequest | null>(null);
   const [mobileDisplayCount, setMobileDisplayCount] = useState(10);
+  const [showWorkflowDialog, setShowWorkflowDialog] = useState(false);
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string>('');
+  const [approvalComments, setApprovalComments] = useState('');
+  const [pendingAction, setPendingAction] = useState<'APPROVE' | 'REJECT' | null>(null);
+
+  const user = useSelector((state: RootState) => state.auth.user);
 
   const { data: requestsData, isLoading } = useGetReprintRequestsQuery({
     limit: 500,
     offset: 0,
   });
 
+  const { data: workflowsData } = useGetWorkflowsQuery({ active: true });
+  
   const [updateStatus, { isLoading: isUpdating }] = useUpdateReprintRequestStatusMutation();
+  const [initializeWorkflow, { isLoading: isInitializing }] = useInitializeReprintWorkflowMutation();
+  const [approveReprint, { isLoading: isApproving }] = useApproveReprintRequestMutation();
+
+  // Get approval history for selected request
+  const { data: approvalHistoryData, isLoading: loadingHistory } = useGetReprintApprovalsQuery(
+    selectedRequest?.id || 0,
+    { skip: !selectedRequest?.id || !showHistoryDialog }
+  );
+
+  const workflows = workflowsData?.data || [];
 
   const requests = requestsData?.data || [];
 
@@ -149,6 +182,70 @@ export default function ReprintRequestsPage() {
       console.error('Failed to update status:', error);
       alert('Failed to update status. Please try again.');
     }
+  };
+
+  // Initialize workflow for a request
+  const handleInitializeWorkflow = async () => {
+    if (!selectedRequest || !selectedWorkflowId) return;
+    try {
+      await initializeWorkflow({
+        reprintId: selectedRequest.id,
+        data: { workflow_id: parseInt(selectedWorkflowId) },
+      }).unwrap();
+      setShowWorkflowDialog(false);
+      setSelectedWorkflowId('');
+      alert('Workflow initialized successfully!');
+    } catch (error) {
+      console.error('Failed to initialize workflow:', error);
+      alert('Failed to initialize workflow. Please try again.');
+    }
+  };
+
+  // Handle workflow-based approval
+  const openApprovalDialog = (request: ReprintRequest, action: 'APPROVE' | 'REJECT') => {
+    setSelectedRequest(request);
+    setPendingAction(action);
+    setApprovalComments('');
+    setShowApprovalDialog(true);
+  };
+
+  const handleWorkflowApproval = async () => {
+    if (!selectedRequest || !pendingAction || !user?.id) return;
+    try {
+      const result = await approveReprint({
+        reprintId: selectedRequest.id,
+        data: {
+          user_id: user.id,
+          action: pendingAction,
+          comments: approvalComments || undefined,
+        },
+      }).unwrap();
+      
+      setShowApprovalDialog(false);
+      setSelectedRequest(null);
+      setPendingAction(null);
+      setApprovalComments('');
+      
+      // Show result message
+      if (result.data.ticket_status === 'APPROVED') {
+        alert('Request has been fully approved!');
+      } else if (result.data.ticket_status === 'REJECTED') {
+        alert('Request has been rejected.');
+      } else if (result.data.moved_to_next_node) {
+        alert(`Approved! Moved to next stage: ${result.data.next_node?.name}`);
+      } else {
+        alert(`Approval recorded. Waiting for ${result.data.node_status.total_required - result.data.node_status.approved_count} more approval(s).`);
+      }
+    } catch (error: any) {
+      console.error('Failed to process approval:', error);
+      alert(error?.data?.message || 'Failed to process approval. Please try again.');
+    }
+  };
+
+  // Open approval history
+  const openHistoryDialog = (request: ReprintRequest) => {
+    setSelectedRequest(request);
+    setShowHistoryDialog(true);
   };
 
   const handlePrevious = () => {
@@ -295,37 +392,37 @@ export default function ReprintRequestsPage() {
                           </p>
                         </div>
                       </div>
-                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+                      <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex flex-wrap gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1 gap-2"
+                          className="gap-2"
                           onClick={() => setSelectedRequest(request)}
                         >
                           <Eye className="w-4 h-4" />
                           View
                         </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => openHistoryDialog(request)}
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
                         {request.status === 'pending' && (
-                          <>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-green-600 hover:text-green-700 hover:bg-green-50"
-                              onClick={() => handleStatusUpdate(request.id, 'approved')}
-                              disabled={isUpdating}
-                            >
-                              <Check className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              onClick={() => handleStatusUpdate(request.id, 'rejected')}
-                              disabled={isUpdating}
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setShowWorkflowDialog(true);
+                            }}
+                            title="Start Workflow"
+                          >
+                            <GitBranch className="w-4 h-4" />
+                          </Button>
                         )}
                         {request.status === 'approved' && (
                           <Button
@@ -409,29 +506,26 @@ export default function ReprintRequestsPage() {
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openHistoryDialog(request)}
+                                title="View Approval History"
+                              >
+                                <History className="w-4 h-4" />
+                              </Button>
                               {request.status === 'pending' && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-green-600 hover:text-green-700 hover:bg-green-50"
-                                    onClick={() => handleStatusUpdate(request.id, 'approved')}
-                                    disabled={isUpdating}
-                                    title="Approve"
-                                  >
-                                    <Check className="w-4 h-4" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => handleStatusUpdate(request.id, 'rejected')}
-                                    disabled={isUpdating}
-                                    title="Reject"
-                                  >
-                                    <X className="w-4 h-4" />
-                                  </Button>
-                                </>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedRequest(request);
+                                    setShowWorkflowDialog(true);
+                                  }}
+                                  title="Start Approval Workflow"
+                                >
+                                  <GitBranch className="w-4 h-4" />
+                                </Button>
                               )}
                               {request.status === 'approved' && (
                                 <Button
@@ -439,8 +533,7 @@ export default function ReprintRequestsPage() {
                                   size="sm"
                                   onClick={() => handleStatusUpdate(request.id, 'completed')}
                                   disabled={isUpdating}
-                                  title="Mark as Completed"
-                                >
+                                  title="Mark as Completed">
                                   <Printer className="w-4 h-4" />
                                 </Button>
                               )}
@@ -603,26 +696,6 @@ export default function ReprintRequestsPage() {
             <Button variant="outline" onClick={() => setSelectedRequest(null)}>
               Close
             </Button>
-            {selectedRequest?.status === 'pending' && (
-              <>
-                <Button
-                  variant="outline"
-                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => handleStatusUpdate(selectedRequest.id, 'rejected')}
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <X className="w-4 h-4 mr-2" />}
-                  Reject
-                </Button>
-                <Button
-                  onClick={() => handleStatusUpdate(selectedRequest.id, 'approved')}
-                  disabled={isUpdating}
-                >
-                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Check className="w-4 h-4 mr-2" />}
-                  Approve
-                </Button>
-              </>
-            )}
             {selectedRequest?.status === 'approved' && (
               <Button
                 onClick={() => handleStatusUpdate(selectedRequest.id, 'completed')}
@@ -632,6 +705,257 @@ export default function ReprintRequestsPage() {
                 Mark Completed
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Initialize Workflow Dialog */}
+      <Dialog open={showWorkflowDialog} onOpenChange={setShowWorkflowDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitBranch className="w-5 h-5" />
+              Start Approval Workflow
+            </DialogTitle>
+            <DialogDescription>
+              Select a workflow to process this reprint request through an approval hierarchy
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Request</p>
+                <p className="font-medium">#{selectedRequest.id} - {selectedRequest.trace_no}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                  {getReasonLabel(selectedRequest.reason)} • {selectedRequest.requested_copies} copies
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="workflow-select">Select Workflow</Label>
+                <Select value={selectedWorkflowId} onValueChange={setSelectedWorkflowId}>
+                  <SelectTrigger id="workflow-select">
+                    <SelectValue placeholder="Choose a workflow..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workflows.map((workflow) => (
+                      <SelectItem key={workflow.id} value={workflow.id.toString()}>
+                        {workflow.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {workflows.length === 0 && (
+                  <p className="text-sm text-amber-600">
+                    No active workflows available. Create a workflow first.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowWorkflowDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleInitializeWorkflow}
+              disabled={!selectedWorkflowId || isInitializing}
+            >
+              {isInitializing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Starting...
+                </>
+              ) : (
+                <>
+                  <GitBranch className="w-4 h-4 mr-2" />
+                  Start Workflow
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approval Dialog */}
+      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {pendingAction === 'APPROVE' ? (
+                <Check className="w-5 h-5 text-green-600" />
+              ) : (
+                <X className="w-5 h-5 text-red-600" />
+              )}
+              {pendingAction === 'APPROVE' ? 'Approve Request' : 'Reject Request'}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingAction === 'APPROVE' 
+                ? 'Confirm your approval for this reprint request'
+                : 'Confirm rejection of this reprint request'}
+            </DialogDescription>
+          </DialogHeader>
+          {selectedRequest && (
+            <div className="space-y-4">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">Request</p>
+                <p className="font-medium">#{selectedRequest.id} - {selectedRequest.trace_no}</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                  {getReasonLabel(selectedRequest.reason)} • {selectedRequest.requested_copies} copies
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="approval-comments">Comments (Optional)</Label>
+                <Textarea
+                  id="approval-comments"
+                  placeholder="Add any comments about your decision..."
+                  value={approvalComments}
+                  onChange={(e) => setApprovalComments(e.target.value)}
+                  rows={3}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApprovalDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleWorkflowApproval}
+              disabled={isApproving}
+              variant={pendingAction === 'REJECT' ? 'destructive' : 'default'}
+            >
+              {isApproving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : pendingAction === 'APPROVE' ? (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Approve
+                </>
+              ) : (
+                <>
+                  <X className="w-4 h-4 mr-2" />
+                  Reject
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approval History Dialog */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Approval History
+            </DialogTitle>
+            <DialogDescription>
+              View the approval workflow progress and history
+            </DialogDescription>
+          </DialogHeader>
+          {loadingHistory ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+            </div>
+          ) : approvalHistoryData?.data ? (
+            <div className="space-y-4">
+              {/* Current Status */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Workflow</p>
+                    <p className="font-medium">{approvalHistoryData.data.workflow_name || 'No workflow assigned'}</p>
+                  </div>
+                  <Badge className={
+                    approvalHistoryData.data.approval_status === 'APPROVED' 
+                      ? 'bg-green-100 text-green-800' 
+                      : approvalHistoryData.data.approval_status === 'REJECTED'
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-yellow-100 text-yellow-800'
+                  }>
+                    {approvalHistoryData.data.approval_status}
+                  </Badge>
+                </div>
+                {approvalHistoryData.data.current_node && (
+                  <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <p className="text-xs text-slate-500 mb-1">Current Stage</p>
+                    <p className="font-medium">{approvalHistoryData.data.current_node.name}</p>
+                    <p className="text-sm text-slate-500 mt-1">
+                      {approvalHistoryData.data.current_node.approved_count} / {approvalHistoryData.data.current_node.total_required} approvals
+                      ({approvalHistoryData.data.current_node.approval_type === 'ALL' ? 'All required' : 'Any one required'})
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Approval Timeline */}
+              {approvalHistoryData.data.history && approvalHistoryData.data.history.length > 0 ? (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-sm">Approval Timeline</h4>
+                  <div className="space-y-2">
+                    {approvalHistoryData.data.history.map((item, index) => (
+                      <div 
+                        key={index}
+                        className="flex items-start gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700"
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          item.status === 'APPROVED' 
+                            ? 'bg-green-100 text-green-600' 
+                            : item.status === 'REJECTED'
+                            ? 'bg-red-100 text-red-600'
+                            : 'bg-yellow-100 text-yellow-600'
+                        }`}>
+                          {item.status === 'APPROVED' ? (
+                            <Check className="w-4 h-4" />
+                          ) : item.status === 'REJECTED' ? (
+                            <X className="w-4 h-4" />
+                          ) : (
+                            <Clock className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-medium text-sm">{item.user_name}</p>
+                            <Badge variant="outline" className="text-xs">
+                              Stage {item.node_order}: {item.node_name}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {item.status} • {new Date(item.approved_at).toLocaleString()}
+                          </p>
+                          {item.comments && (
+                            <p className="text-sm text-slate-600 dark:text-slate-400 mt-2 italic">
+                              &quot;{item.comments}&quot;
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-6 text-slate-500">
+                  <History className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+                  <p>No approval history yet</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-500">
+              <AlertCircle className="w-10 h-10 mx-auto mb-2 text-slate-300" />
+              <p>No workflow assigned to this request</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

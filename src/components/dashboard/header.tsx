@@ -1,12 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSelector } from 'react-redux';
 import { RootState, useAppDispatch } from '@/store';
 import { logout } from '@/store/features/authSlice';
-import { Bell, Search, LogOut } from 'lucide-react';
+import { Bell, Search, LogOut, ClipboardCheck, ChevronRight, Loader2, Clock, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from '@/components/ui/sheet';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,17 +25,53 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useGetPendingReprintApprovalsQuery } from '@/store/services/workflowApi';
+
+interface PendingApprovalItem {
+  id: number;
+  reprint_request_id: number;
+  trace_no: string;
+  reason: string;
+  node_name: string;
+  workflow_name: string;
+  created_at: string;
+}
 
 export function Header() {
+  const [notificationOpen, setNotificationOpen] = useState(false);
   const { user } = useSelector((state: RootState) => state.auth);
   const dispatch = useAppDispatch();
   const router = useRouter();
 
+  // Fetch pending approvals for current user
+  const { data: pendingData, isLoading: loadingApprovals } = useGetPendingReprintApprovalsQuery(
+    { userId: user?.id || 0, limit: 20, offset: 0 },
+    { skip: !user?.id, pollingInterval: 30000 } // Poll every 30 seconds
+  );
+
+  const pendingApprovals = (pendingData?.data || []) as unknown as PendingApprovalItem[];
+  const pendingCount = pendingApprovals.length;
+
   const handleLogout = () => {
-    // Dispatch logout action to clear auth state and localStorage
     dispatch(logout());
-    // Redirect to login page
     router.push('/login');
+  };
+
+  const handleViewAllApprovals = () => {
+    setNotificationOpen(false);
+    router.push('/dashboard/approvals');
+  };
+
+  const getReasonLabel = (reason: string) => {
+    const labels: Record<string, string> = {
+      damaged: 'Damaged',
+      lost: 'Lost',
+      print_error: 'Print Error',
+      customer_request: 'Customer Request',
+      faded: 'Faded',
+      other: 'Other',
+    };
+    return labels[reason] || reason;
   };
 
   return (
@@ -40,10 +86,108 @@ export function Header() {
         </div>
       </div>
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
-        <Button variant="ghost" size="icon" className="relative">
+        {/* Notifications Button */}
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="relative"
+          onClick={() => setNotificationOpen(true)}
+        >
           <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+          {pendingCount > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-5 h-5 px-1 bg-red-500 rounded-full flex items-center justify-center text-xs text-white font-medium">
+              {pendingCount > 9 ? '9+' : pendingCount}
+            </span>
+          )}
         </Button>
+
+        {/* Notifications Drawer */}
+        <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
+          <SheetContent side="right" className="w-full sm:w-96 p-0">
+            <SheetHeader className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <SheetTitle className="flex items-center gap-2">
+                  <Bell className="w-5 h-5" />
+                  Notifications
+                </SheetTitle>
+                {pendingCount > 0 && (
+                  <Badge className="bg-red-500 text-white">
+                    {pendingCount} pending
+                  </Badge>
+                )}
+              </div>
+              <SheetDescription>
+                Pending approvals that require your attention
+              </SheetDescription>
+            </SheetHeader>
+
+            <ScrollArea className="h-[calc(100vh-180px)]">
+              {loadingApprovals ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-400" />
+                </div>
+              ) : pendingApprovals.length > 0 ? (
+                <div className="p-2 space-y-2">
+                  {pendingApprovals.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                      onClick={handleViewAllApprovals}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 rounded-full bg-yellow-100 dark:bg-yellow-900">
+                          <Printer className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-semibold text-sm">Reprint Request</span>
+                            <Badge variant="outline" className="text-xs">
+                              {getReasonLabel(item.reason)}
+                            </Badge>
+                          </div>
+                          <p className="text-sm font-mono text-slate-600 dark:text-slate-400 truncate">
+                            {item.trace_no}
+                          </p>
+                          <div className="flex items-center gap-1 mt-2 text-xs text-slate-500">
+                            <ClipboardCheck className="w-3 h-3" />
+                            <span>{item.workflow_name}</span>
+                            <ChevronRight className="w-3 h-3" />
+                            <span className="font-medium text-blue-600 dark:text-blue-400">
+                              {item.node_name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1 text-xs text-slate-400">
+                            <Clock className="w-3 h-3" />
+                            <span>{new Date(item.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+                  <ClipboardCheck className="w-12 h-12 mb-4 text-slate-300" />
+                  <p className="font-medium">No pending approvals</p>
+                  <p className="text-sm text-slate-400 mt-1">You&apos;re all caught up!</p>
+                </div>
+              )}
+            </ScrollArea>
+
+            {pendingApprovals.length > 0 && (
+              <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950">
+                <Button 
+                  className="w-full" 
+                  onClick={handleViewAllApprovals}
+                >
+                  View All Approvals
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            )}
+          </SheetContent>
+        </Sheet>
         <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700">
           <div className="text-right">
             <p className="text-sm font-medium text-slate-900 dark:text-white">
