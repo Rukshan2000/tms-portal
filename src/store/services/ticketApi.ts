@@ -95,6 +95,23 @@ export interface SearchTicketsByDateRangeResponse {
   };
 }
 
+export interface ReprintRequest {
+  ticket_id: number;
+  trace_no: string;
+  reason: string;
+  requested_copies?: number;
+  notes?: string;
+}
+
+export interface ReprintResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    request_id: string;
+    status: string;
+  };
+}
+
 // Helper function to normalize ticket data
 const normalizeTicket = (ticket: any): Ticket => ({
   ...ticket,
@@ -234,6 +251,15 @@ export const ticketApi = createApi({
       }),
       invalidatesTags: ['Ticket'],
     }),
+
+    // Request reprint
+    requestReprint: builder.mutation<ReprintResponse, ReprintRequest>({
+      query: (reprintData) => ({
+        url: '/ocr/tickets/reprint',
+        method: 'POST',
+        body: reprintData,
+      }),
+    }),
   }),
 });
 
@@ -247,4 +273,5 @@ export const {
   useCreateTicketWithImageMutation,
   useUpdateTicketMutation,
   useDeleteTicketMutation,
+  useRequestReprintMutation,
 } = ticketApi;

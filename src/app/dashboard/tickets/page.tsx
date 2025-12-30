@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ChevronLeft, ChevronRight, Plus, X, Filter, Eye, MapPin, Calendar, Clock } from 'lucide-react';
-import { useGetTicketsQuery, Ticket } from '@/store/services/ticketApi';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2, ChevronLeft, ChevronRight, Plus, X, Filter, Eye, MapPin, Calendar, Clock, Printer } from 'lucide-react';
+import { useGetTicketsQuery, useRequestReprintMutation, Ticket } from '@/store/services/ticketApi';
 import {
   Table,
   TableBody,
@@ -27,6 +29,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '@/components/ui/dialog';
 
 // Filter field options
@@ -80,6 +83,10 @@ export default function TicketsPage() {
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [showFilterBuilder, setShowFilterBuilder] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [reprintTicket, setReprintTicket] = useState<Ticket | null>(null);
+  const [reprintReason, setReprintReason] = useState('');
+  const [reprintCopies, setReprintCopies] = useState(1);
+  const [reprintNotes, setReprintNotes] = useState('');
 
   // New filter state
   const [newFilterField, setNewFilterField] = useState('');
@@ -90,6 +97,8 @@ export default function TicketsPage() {
     limit: 500, // Fetch more for client-side filtering
     offset: 0,
   });
+
+  const [requestReprint, { isLoading: isReprintLoading }] = useRequestReprintMutation();
 
   const tickets = ticketsData?.data || [];
 
@@ -270,6 +279,37 @@ export default function TicketsPage() {
     if (offset + limit < filteredTickets.length) {
       setOffset(offset + limit);
     }
+  };
+
+  const handleReprintSubmit = async () => {
+    if (!reprintTicket || !reprintReason) return;
+
+    try {
+      await requestReprint({
+        ticket_id: reprintTicket.id,
+        trace_no: reprintTicket.trace_no,
+        reason: reprintReason,
+        requested_copies: reprintCopies,
+        notes: reprintNotes || undefined,
+      }).unwrap();
+      
+      // Reset form and close dialog
+      setReprintTicket(null);
+      setReprintReason('');
+      setReprintCopies(1);
+      setReprintNotes('');
+      alert('Reprint request submitted successfully!');
+    } catch (error) {
+      console.error('Failed to submit reprint request:', error);
+      alert('Failed to submit reprint request. Please try again.');
+    }
+  };
+
+  const openReprintDialog = (ticket: Ticket) => {
+    setReprintTicket(ticket);
+    setReprintReason('');
+    setReprintCopies(1);
+    setReprintNotes('');
   };
 
   const currentPage = Math.floor(offset / limit) + 1;
@@ -502,15 +542,24 @@ export default function TicketsPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="w-full gap-2"
+                        className="flex-1 gap-2"
                         onClick={() => setSelectedTicket(ticket)}
                       >
                         <Eye className="w-4 h-4" />
-                        View Details
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-2"
+                        onClick={() => openReprintDialog(ticket)}
+                      >
+                        <Printer className="w-4 h-4" />
+                        Reprint
                       </Button>
                     </div>
                   </div>
@@ -575,13 +624,24 @@ export default function TicketsPage() {
                           {new Date(ticket.created_at).toLocaleDateString()} {new Date(ticket.created_at).toLocaleTimeString()}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setSelectedTicket(ticket)}
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedTicket(ticket)}
+                              title="View Details"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openReprintDialog(ticket)}
+                              title="Request Reprint"
+                            >
+                              <Printer className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -727,6 +787,115 @@ export default function TicketsPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reprint Request Modal */}
+      <Dialog open={!!reprintTicket} onOpenChange={() => setReprintTicket(null)}>
+        <DialogContent className="max-w-md mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5" />
+              Request Reprint
+            </DialogTitle>
+          </DialogHeader>
+          {reprintTicket && (
+            <div className="space-y-4">
+              {/* Ticket Info Summary */}
+              <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-slate-500 mb-1">Trace Number</p>
+                    <code className="text-sm font-mono font-semibold">{reprintTicket.trace_no}</code>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-slate-500 mb-1">Total Amount</p>
+                    <p className="text-sm font-bold text-green-600 dark:text-green-400">
+                      LKR {reprintTicket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                  <p className="text-xs text-slate-500">
+                    {reprintTicket.location} • {reprintTicket.date} at {reprintTicket.time}
+                  </p>
+                </div>
+              </div>
+
+              {/* Reprint Form */}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reason">Reason for Reprint <span className="text-red-500">*</span></Label>
+                  <Select value={reprintReason} onValueChange={setReprintReason}>
+                    <SelectTrigger id="reason">
+                      <SelectValue placeholder="Select reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="damaged">Damaged Ticket</SelectItem>
+                      <SelectItem value="lost">Lost Ticket</SelectItem>
+                      <SelectItem value="print_error">Print Error</SelectItem>
+                      <SelectItem value="customer_request">Customer Request</SelectItem>
+                      <SelectItem value="faded">Faded/Unreadable</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="copies">Number of Copies</Label>
+                  <Select value={reprintCopies.toString()} onValueChange={(val) => setReprintCopies(Number(val))}>
+                    <SelectTrigger id="copies">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1</SelectItem>
+                      <SelectItem value="2">2</SelectItem>
+                      <SelectItem value="3">3</SelectItem>
+                      <SelectItem value="4">4</SelectItem>
+                      <SelectItem value="5">5</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Enter any additional details about the reprint request..."
+                    value={reprintNotes}
+                    onChange={(e) => setReprintNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setReprintTicket(null)}
+              disabled={isReprintLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReprintSubmit}
+              disabled={!reprintReason || isReprintLoading}
+              className="gap-2"
+            >
+              {isReprintLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  <Printer className="w-4 h-4" />
+                  Submit Request
+                </>
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
