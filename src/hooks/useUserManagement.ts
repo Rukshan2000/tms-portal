@@ -27,8 +27,8 @@ export const useFetchUsers = (params?: { limit?: number; offset?: number }) => {
 /**
  * Hook for fetching a single user by ID
  */
-export const useFetchUserById = (userId: number) => {
-  const { data, isLoading, error, refetch } = useGetUserByIdQuery(userId);
+export const useFetchUserById = (userId: number, options?: { skip?: boolean }) => {
+  const { data, isLoading, error, refetch } = useGetUserByIdQuery(userId, { skip: options?.skip });
 
   return {
     user: data?.data,
@@ -130,7 +130,7 @@ export const useDeleteUserHandler = () => {
  */
 export const useUserManagement = (userId?: number) => {
   const fetchAll = useFetchUsers();
-  const fetchOne = userId ? useFetchUserById(userId) : null;
+  const fetchOne = useFetchUserById(userId ?? 0, { skip: !userId });
   const create = useCreateUserHandler();
   const update = useUpdateUserHandler();
   const deleteUser = useDeleteUserHandler();
@@ -140,8 +140,8 @@ export const useUserManagement = (userId?: number) => {
     users: fetchAll.users,
     total: fetchAll.total,
     isLoadingUsers: fetchAll.isLoading,
-    user: fetchOne?.user,
-    isLoadingUser: fetchOne?.isLoading,
+    user: userId ? fetchOne.user : undefined,
+    isLoadingUser: userId ? fetchOne.isLoading : false,
 
     // Write operations
     create,
@@ -150,6 +150,6 @@ export const useUserManagement = (userId?: number) => {
 
     // Refetch
     refetchUsers: fetchAll.refetch,
-    refetchUser: fetchOne?.refetch,
+    refetchUser: userId ? fetchOne.refetch : undefined,
   };
 };

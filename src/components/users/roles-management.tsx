@@ -41,7 +41,7 @@ export function RolesManagement() {
 
   const [deleteRole, { isLoading: isDeleting }] = useDeleteRoleMutation();
 
-  const roles = rolesData?.data || [];
+  const roles = useMemo(() => rolesData?.data || [], [rolesData?.data]);
   const total = rolesData?.pagination.total || 0;
 
   // Mobile roles with "show more"
