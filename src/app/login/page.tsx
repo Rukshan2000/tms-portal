@@ -1,5 +1,8 @@
 'use client';
 
+import Image from 'next/image';
+import tmsLogo from '@/assets/text.png';
+import Logo from '@/assets/logo.jpg';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -26,7 +29,6 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { Lock } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -100,14 +102,25 @@ export default function LoginPage() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
-              <Lock className="w-8 h-8 text-primary-foreground" />
-            </div>
+            <Image
+              src={Logo}
+              alt="TMS Portal Logo"
+              width={100}
+              height={100}
+              priority
+              className="w-auto h-auto"
+            />
           </div>
-          <CardTitle className="text-3xl font-bold">TMS Portal</CardTitle>
+                    <div className="flex justify-center mb-4">
+            <Image
+              src={tmsLogo}
+              alt="TMS Portal Logo"
+              priority
+              className="w-auto h-auto"
+            />
+          </div>
           <CardDescription className="text-base">
-            Enter your credentials to access the admin dashboard
-          </CardDescription>
+Sign In          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
