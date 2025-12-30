@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, ChevronLeft, ChevronRight, Plus, X, Filter, Eye, MapPin, Calendar, Clock, Printer } from 'lucide-react';
-import { useGetTicketsQuery, useRequestReprintMutation, Ticket } from '@/store/services/ticketApi';
+import { useGetTicketsQuery, Ticket } from '@/store/services/ticketApi';
+import { useCreateReprintRequestMutation } from '@/store/services/reprintRequestApi';
 import {
   Table,
   TableBody,
@@ -98,7 +99,7 @@ export default function TicketsPage() {
     offset: 0,
   });
 
-  const [requestReprint, { isLoading: isReprintLoading }] = useRequestReprintMutation();
+  const [requestReprint, { isLoading: isReprintLoading }] = useCreateReprintRequestMutation();
 
   const tickets = ticketsData?.data || [];
 

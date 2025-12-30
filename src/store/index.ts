@@ -4,6 +4,7 @@ import { authApi } from './services/authApi';
 import { userApi } from './services/userApi';
 import { roleApi } from './services/roleApi';
 import { ticketApi } from './services/ticketApi';
+import { reprintRequestApi } from './services/reprintRequestApi';
 import authReducer from './features/authSlice';
 
 export const store = configureStore({
@@ -13,13 +14,15 @@ export const store = configureStore({
     [userApi.reducerPath]: userApi.reducer,
     [roleApi.reducerPath]: roleApi.reducer,
     [ticketApi.reducerPath]: ticketApi.reducer,
+    [reprintRequestApi.reducerPath]: reprintRequestApi.reducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware()
       .concat(authApi.middleware)
       .concat(userApi.middleware)
       .concat(roleApi.middleware)
-      .concat(ticketApi.middleware),
+      .concat(ticketApi.middleware)
+      .concat(reprintRequestApi.middleware),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

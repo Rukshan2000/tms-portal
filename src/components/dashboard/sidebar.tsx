@@ -10,6 +10,7 @@ import {
   FileText,
   Menu,
   X,
+  Printer,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
@@ -28,6 +29,11 @@ const menuItems = [
     title: 'Tickets',
     icon: FileText,
     href: '/dashboard/tickets',
+  },
+  {
+    title: 'Reprint Requests',
+    icon: Printer,
+    href: '/dashboard/reprint-requests',
   },
   {
     title: 'User Management',
