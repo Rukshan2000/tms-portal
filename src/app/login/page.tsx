@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import tmsLogo from '@/assets/text.png';
 import Logo from '@/assets/logo.jpg';
+import bgImage from '@/assets/bg.jpeg';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
@@ -98,8 +99,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div 
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: `url(${bgImage.src})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed',
+        backgroundColor: 'rgba(255, 255, 255, 0.5)',
+        backgroundBlendMode: 'overlay',
+      }}
+    >
+      <Card className="w-full max-w-md shadow-xl backdrop-blur-md bg-white/10 border border-white/20">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <Image
