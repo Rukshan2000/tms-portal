@@ -14,6 +14,8 @@ import { useLoginMutation } from '@/store/services/authApi';
 import { useAppDispatch, RootState } from '@/store';
 import { setCredentials } from '@/store/features/authSlice';
 import { Button } from '@/components/ui/button';
+import LogoLg from '@/assets/logo_2.png';
+
 import {
   Card,
   CardContent,
@@ -81,10 +83,12 @@ export default function LoginPage() {
         setError(response.message || 'Login failed. Please try again.');
       }
     } catch (err: any) {
-      console.error('Login error:', err);
-      
       // Extract error message from different possible error formats
       let errorMessage = 'Login failed. Please try again.';
+      
+      // Log detailed error information for debugging
+      console.error('Login error - Full error object:', err);
+      console.error('Login error - Error keys:', Object.keys(err || {}));
       
       if (err?.data?.error) {
         errorMessage = err.data.error;
@@ -92,8 +96,20 @@ export default function LoginPage() {
         errorMessage = err.data.message;
       } else if (err?.message) {
         errorMessage = err.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err?.status) {
+        // Handle network errors with status codes
+        if (err.status === 401) {
+          errorMessage = 'Invalid email or password.';
+        } else if (err.status === 500) {
+          errorMessage = 'Server error. Please try again later.';
+        } else {
+          errorMessage = `Error (${err.status}): ${err.statusText || 'Unknown error'}`;
+        }
       }
       
+      console.error('Login error - Final message:', errorMessage);
       setError(errorMessage);
     }
   };
@@ -110,26 +126,19 @@ export default function LoginPage() {
         backgroundBlendMode: 'overlay',
       }}
     >
-      <Card className="w-full max-w-md shadow-xl backdrop-blur-md bg-white/10 border border-white/20">
+      <Card className="w-full max-w-md shadow-xl backdrop-blur-md bg-white/20 border border-white/20">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <Image
-              src={Logo}
+              src={LogoLg}
               alt="TMS Portal Logo"
-              width={100}
+              width={1000}
               height={100}
               priority
               className="w-auto h-auto"
             />
           </div>
-                    <div className="flex justify-center mb-4">
-            <Image
-              src={tmsLogo}
-              alt="TMS Portal Logo"
-              priority
-              className="w-auto h-auto"
-            />
-          </div>
+                   
           <CardDescription className="text-base">
 Sign In          </CardDescription>
         </CardHeader>

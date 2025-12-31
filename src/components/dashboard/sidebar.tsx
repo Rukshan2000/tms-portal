@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +21,9 @@ import { useDispatch } from 'react-redux';
 import { logout } from '@/store/features/authSlice';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import LogoLg from '@/assets/logo_2.png';
+import LogoSm from '@/assets/logo_1.png';
+
 
 const menuItems = [
   {
@@ -126,25 +130,28 @@ export function Sidebar() {
 
       <div
         className={cn(
-          'border-b border-slate-200 dark:border-slate-700 transition-all duration-300',
+          'border-b border-slate-200 dark:border-slate-700 transition-all duration-300 flex items-center justify-center',
           isCollapsed && !isMobileOpen ? 'p-4' : 'p-6'
         )}
       >
         {isCollapsed && !isMobileOpen ? (
-          <div className="flex justify-center">
-            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-              <span className="text-primary-foreground font-bold text-lg">T</span>
-            </div>
-          </div>
+          <Image
+            src={LogoSm}
+            alt="Logo"
+            width={40}
+            height={40}
+            className="w-10 h-10 object-contain"
+            priority
+          />
         ) : (
-          <>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              TMS Portal
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Admin Dashboard
-            </p>
-          </>
+          <Image
+            src={LogoLg}
+            alt="Logo"
+            width={200}
+            height={80}
+            className="w-auto h-auto max-w-full"
+            priority
+          />
         )}
       </div>
 
