@@ -50,6 +50,25 @@ export function RoleViewDialog({
             </div>
           </div>
 
+          {/* Permissions */}
+          <div className="space-y-3">
+            <h4 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Shield className="w-4 h-4" />
+              Permissions
+            </h4>
+            <div className="flex flex-wrap gap-2">
+              {role.permissions && role.permissions.length > 0 ? (
+                role.permissions.map((permission) => (
+                  <Badge key={permission.id} variant="secondary">
+                    {permission.name}
+                  </Badge>
+                ))
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-400">No permissions assigned</p>
+              )}
+            </div>
+          </div>
+
           {/* Created At */}
           <div className="flex items-center gap-3 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <Users className="w-5 h-5 text-slate-500" />

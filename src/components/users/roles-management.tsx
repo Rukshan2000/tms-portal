@@ -177,8 +177,8 @@ export function RolesManagement() {
                       </div>
                       <div className="flex gap-1 flex-wrap">
                         {role.permissions.slice(0, 2).map((perm) => (
-                          <Badge key={perm} variant="secondary" className="text-xs">
-                            {perm}
+                          <Badge key={perm.id} variant="secondary" className="text-xs">
+                            {perm.name}
                           </Badge>
                         ))}
                         {role.permissions.length > 2 && (
@@ -220,7 +220,6 @@ export function RolesManagement() {
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Permissions</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
@@ -234,11 +233,11 @@ export function RolesManagement() {
                         <TableCell className="text-sm text-muted-foreground">
                           {role.description || 'No description'}
                         </TableCell>
-                        <TableCell>
+                        {/* <TableCell>
                           <div className="flex gap-1 flex-wrap">
                             {role.permissions.slice(0, 3).map((perm) => (
-                              <Badge key={perm} variant="secondary" className="text-xs">
-                                {perm}
+                              <Badge key={perm.id} variant="secondary" className="text-xs">
+                                {perm.name}
                               </Badge>
                             ))}
                             {role.permissions.length > 3 && (
@@ -247,7 +246,7 @@ export function RolesManagement() {
                               </Badge>
                             )}
                           </div>
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell>
                           <Badge variant={role.is_active ? 'default' : 'secondary'}>
                             {role.is_active ? 'Active' : 'Inactive'}

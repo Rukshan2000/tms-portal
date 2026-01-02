@@ -72,14 +72,22 @@ export function UserFormDialog({
   });
 
   useEffect(() => {
+    const roles = rolesData?.data || [];
     if (user) {
+      // Match user's role name to the role object's id
+      let roleId = '';
+      if (user.role && roles.length > 0) {
+        const matchedRole = roles.find((r) => r.name === user.role);
+        roleId = matchedRole ? String(matchedRole.id) : '';
+      }
+
       form.reset({
         first_name: user.first_name || '',
         last_name: user.last_name || '',
         email: user.email || '',
         username: user.username || '',
         password: '',
-        role: user.role ? user.role.toString() : '',
+        role: roleId,
       });
     } else {
       form.reset({
@@ -91,7 +99,7 @@ export function UserFormDialog({
         role: '',
       });
     }
-  }, [user, form]);
+  }, [user, rolesData, form]);
 
   const onSubmit = (data: UserFormValues) => {
     const submitData: Partial<User> & { password?: string } = {
@@ -224,7 +232,7 @@ export function UserFormDialog({
                     ) : (
                       <Select
                         onValueChange={field.onChange}
-                        value={field.value}
+                        value={field.value || ''}
                       >
                         <FormControl>
                           <SelectTrigger>
@@ -234,8 +242,8 @@ export function UserFormDialog({
                         <SelectContent>
                           {roles.map((role) => (
                             <SelectItem
-                              key={role.name}
-                              value={role.name}
+                              key={role.id}
+                              value={String(role.id)}
                             >
                               {role.name.charAt(0).toUpperCase() +
                                 role.name.slice(1)}

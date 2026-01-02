@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -36,12 +36,30 @@ export function RoleFormDialog({
   });
 
   const permissions = permissionsData?.data || [];
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    permissions: number[];
+    is_active: boolean;
+  }>({
     name: role?.name || '',
     description: role?.description || '',
-    permissions: role?.permissions || [],
+    permissions: role?.permissions?.map((p) => p.id) || [],
     is_active: role?.is_active ?? true,
   });
+
+  // Update permissions when role changes (for editing)
+  useEffect(() => {
+    if (open && role) {
+      setFormData((prev) => ({
+        ...prev,
+        name: role.name,
+        description: role.description,
+        permissions: role.permissions?.map((p) => p.id) || [],
+        is_active: role.is_active,
+      }));
+    }
+  }, [open, role]);
 
   const [createRole, { isLoading: isCreating }] = useCreateRoleMutation();
   const [updateRole, { isLoading: isUpdating }] = useUpdateRoleMutation();
