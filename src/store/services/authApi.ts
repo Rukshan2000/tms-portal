@@ -8,6 +8,7 @@ export interface LoginRequest {
   email?: string;
   username?: string;
   password: string;
+  type: 'app' | 'portal';
 }
 
 export interface RegisterRequest {

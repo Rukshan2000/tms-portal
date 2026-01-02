@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
-import { useCreateRoleMutation, useUpdateRoleMutation, useGetPermissionsQuery, Role } from '@/store/services/roleApi';
+import { useCreateRoleMutation, useUpdateRoleMutation, useGetPermissionsQuery, Role, Permission } from '@/store/services/roleApi';
 
 interface RoleFormDialogProps {
   open: boolean;
@@ -58,6 +58,14 @@ export function RoleFormDialog({
         permissions: role.permissions?.map((p) => p.id) || [],
         is_active: role.is_active,
       }));
+    } else if (open && !role) {
+      // Reset form when creating a new role
+      setFormData({
+        name: '',
+        description: '',
+        permissions: [],
+        is_active: true,
+      });
     }
   }, [open, role]);
 
@@ -91,6 +99,7 @@ export function RoleFormDialog({
           data: {
             name: formData.name,
             description: formData.description,
+            permissions: formData.permissions,
             is_active: formData.is_active,
           },
         }).unwrap();
@@ -157,24 +166,40 @@ export function RoleFormDialog({
           {/* Permissions */}
           <div className="space-y-3">
             <Label>Permissions</Label>
-            <div className="space-y-2 p-4 border rounded-lg bg-slate-50 dark:bg-slate-800">
+            <div className="space-y-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-800 max-h-96 overflow-y-auto">
               {permissionsLoading ? (
                 <div className="text-sm text-slate-500">Loading permissions...</div>
               ) : permissions.length > 0 ? (
-                permissions.map((permission) => (
-                  <div key={permission.id} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`permission-${permission.id}`}
-                      checked={formData.permissions.includes(permission.id)}
-                      onCheckedChange={() => handlePermissionToggle(permission.id)}
-                      disabled={isLoading}
-                    />
-                    <label
-                      htmlFor={`permission-${permission.id}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {permission.name}
-                    </label>
+                permissions.map((permission: any) => (
+                  <div key={permission.id} className="space-y-2">
+                    {/* Parent Category Name */}
+                    <h4 className="font-semibold text-sm text-slate-700 dark:text-slate-300">
+                      {permission.name.charAt(0).toUpperCase() + permission.name.slice(1)}
+                    </h4>
+                    
+                    {/* Child Permissions */}
+                    <div className="space-y-2 pl-4 border-l-2 border-slate-300 dark:border-slate-600">
+                      {permission.children && permission.children.length > 0 ? (
+                        permission.children.map((child: any) => (
+                          <div key={child.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`permission-${child.id}`}
+                              checked={formData.permissions.includes(child.id)}
+                              onCheckedChange={() => handlePermissionToggle(child.id)}
+                              disabled={isLoading}
+                            />
+                            <label
+                              htmlFor={`permission-${child.id}`}
+                              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                            >
+                              {child.name.charAt(0).toUpperCase() + child.name.slice(1)}
+                            </label>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-xs text-slate-500">No permissions available</div>
+                      )}
+                    </div>
                   </div>
                 ))
               ) : (

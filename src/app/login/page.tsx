@@ -66,11 +66,24 @@ export default function LoginPage() {
     try {
       setError(null);
       
-      // Call the API
-      const response = await login(data).unwrap();
+      // Call the API with type: "portal"
+      const response = await login({
+        ...data,
+        type: 'portal',
+      }).unwrap();
       
       // Check if login was successful
       if (response.success && response.data) {
+        // Check if user has "portal" permission (id: 9)
+        const hasPortalPermission = (response.data.user as any).permissions?.some(
+          (permission: any) => permission.id === 9 && permission.name === 'portal'
+        );
+
+        if (!hasPortalPermission) {
+          setError('You do not have access to this portal. Please contact your administrator.');
+          return;
+        }
+
         // Dispatch credentials with the correct data structure
         dispatch(setCredentials({
           user: response.data.user,
