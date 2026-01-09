@@ -6,15 +6,21 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/a
 // Ticket interface matching the API spec
 export interface Ticket {
   id: number;
-  date: string;
-  time: string;
-  terminal_id: string;
-  location: string;
-  trace_no: string;
-  no_tickets: number;
-  total_amount: number;
-  ticket_amount_pp: number;
-  scanned_data: string;
+  date: string | null;
+  time: string | null;
+  terminal_id: string | null;
+  location: string | null;
+  trace_no: string | null;
+  reference_no?: string | null;
+  no_tickets: number | null;
+  total_amount: number | null;
+  ticket_amount_pp: number | null;
+  ticket_img_path?: string | null;
+  scanned_data: string | null;
+  workflow_id?: number | null;
+  current_node_order?: number | null;
+  approval_status?: string | null;
+  created_by?: string | null;
   created_at: string;
   updated_at: string;
 }

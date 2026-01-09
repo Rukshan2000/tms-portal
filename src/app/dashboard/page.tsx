@@ -35,8 +35,8 @@ export default function DashboardPage() {
     }
 
     const tickets = ticketsData.data;
-    const totalAmount = tickets.reduce((sum, ticket) => sum + ticket.total_amount, 0);
-    const ticketCount = tickets.reduce((sum, ticket) => sum + ticket.no_tickets, 0);
+    const totalAmount = tickets.reduce((sum, ticket) => sum + (ticket.total_amount || 0), 0);
+    const ticketCount = tickets.reduce((sum, ticket) => sum + (ticket.no_tickets || 0), 0);
 
     return {
       totalTickets: countData?.data.count || 0,
@@ -56,12 +56,12 @@ export default function DashboardPage() {
     const ticketsByDate: { [key: string]: { amount: number; count: number } } = {};
 
     ticketsData.data.forEach((ticket) => {
-      const date = ticket.date;
+      const date = ticket.date || 'Unknown';
       if (!ticketsByDate[date]) {
         ticketsByDate[date] = { amount: 0, count: 0 };
       }
-      ticketsByDate[date].amount += ticket.total_amount;
-      ticketsByDate[date].count += ticket.no_tickets;
+      ticketsByDate[date].amount += ticket.total_amount || 0;
+      ticketsByDate[date].count += ticket.no_tickets || 0;
     });
 
     const sortedDates = Object.keys(ticketsByDate).sort();
@@ -293,18 +293,18 @@ export default function DashboardPage() {
                   className="flex items-center gap-2 sm:gap-3 lg:gap-4 p-2 sm:p-3 rounded-lg bg-slate-50 dark:bg-slate-800"
                   >
                     <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm flex-shrink-0">
-                      {ticket.terminal_id.substring(0, 2).toUpperCase()}
+                      {ticket.terminal_id ? ticket.terminal_id.substring(0, 2).toUpperCase() : 'T'}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs sm:text-sm font-medium text-slate-900 dark:text-white truncate">
-                        {ticket.location} - LKR {ticket.total_amount.toFixed(2)}
+                        {ticket.location || 'N/A'} - LKR {ticket.total_amount ? ticket.total_amount.toFixed(2) : '0.00'}
                       </p>
                       <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
-                        {ticket.no_tickets} tickets • {new Date(ticket.created_at).toLocaleDateString()}
+                        {ticket.no_tickets || 0} tickets • {ticket.created_at ? new Date(ticket.created_at).toLocaleDateString() : 'N/A'}
                       </p>
                     </div>
                     <div className="text-[10px] sm:text-xs font-mono bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded flex-shrink-0 hidden xs:block sm:block">
-                      {ticket.trace_no}
+                      {ticket.trace_no || 'N/A'}
                     </div>
                   </div>
                 ))}

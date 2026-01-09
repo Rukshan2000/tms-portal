@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2, ChevronLeft, ChevronRight, Plus, X, Filter, Eye, MapPin, Calendar, Clock, Printer } from 'lucide-react';
+import { Loader2, ChevronLeft, ChevronRight, Plus, X, Filter, Eye, MapPin, Calendar, Clock, Printer, Wifi, WifiOff, LayoutGrid, LayoutList } from 'lucide-react';
 import { useGetTicketsQuery, Ticket } from '@/store/services/ticketApi';
 import { useCreateReprintRequestMutation } from '@/store/services/reprintRequestApi';
+import { useTicketsSocket } from '@/hooks/useTicketsSocket';
+import { TicketsGrid } from '@/components/tickets/tickets-grid';
 import {
   Table,
   TableBody,
@@ -88,6 +90,10 @@ export default function TicketsPage() {
   const [reprintReason, setReprintReason] = useState('');
   const [reprintCopies, setReprintCopies] = useState(1);
   const [reprintNotes, setReprintNotes] = useState('');
+  const [localTickets, setLocalTickets] = useState<Ticket[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
+  const [showConnectionStatus, setShowConnectionStatus] = useState(true);
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
 
   // New filter state
   const [newFilterField, setNewFilterField] = useState('');
@@ -101,7 +107,61 @@ export default function TicketsPage() {
 
   const [requestReprint, { isLoading: isReprintLoading }] = useCreateReprintRequestMutation();
 
-  const tickets = useMemo(() => ticketsData?.data || [], [ticketsData?.data]);
+  // WebSocket hooks
+  const {
+    isConnected,
+  } = useTicketsSocket({
+    enabled: true,
+    onTicketCreated: (ticket: Ticket) => {
+      console.log('🎫 Adding new ticket to list:', ticket);
+      setLocalTickets((prev) => {
+        // Avoid duplicates
+        if (prev.some(t => t.id === ticket.id)) {
+          return prev;
+        }
+        return [ticket, ...prev];
+      });
+    },
+    onTicketUpdated: (ticket: Ticket) => {
+      console.log('📝 Updating ticket in list:', ticket);
+      setLocalTickets((prev) =>
+        prev.map((t) => (t.id === ticket.id ? ticket : t))
+      );
+    },
+    onTicketDeleted: (ticketData: { id: number }) => {
+      console.log('🗑️ Removing ticket from list:', ticketData.id);
+      setLocalTickets((prev) =>
+        prev.filter((t) => t.id !== ticketData.id)
+      );
+    },
+    onError: (error) => {
+      console.error('WebSocket error:', error);
+    },
+  });
+
+  // Track WebSocket connection status
+  useEffect(() => {
+    const checkConnection = () => {
+      setWsConnected(isConnected());
+    };
+
+    const interval = setInterval(checkConnection, 1000);
+    checkConnection();
+
+    return () => clearInterval(interval);
+  }, [isConnected]);
+
+  // Initialize local tickets from API data
+  useEffect(() => {
+    if (ticketsData?.data) {
+      setLocalTickets(ticketsData.data);
+    }
+  }, [ticketsData?.data]);
+
+  const tickets = useMemo(
+    () => localTickets.length > 0 ? localTickets : ticketsData?.data || [],
+    [localTickets, ticketsData?.data]
+  );
 
   // Get operators based on field type
   const getOperatorsForField = (fieldValue: string) => {
@@ -213,7 +273,9 @@ export default function TicketsPage() {
 
     // Sort by created_at in descending order
     return result.sort((a, b) => {
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
     });
   }, [tickets, filters]);
 
@@ -288,7 +350,7 @@ export default function TicketsPage() {
     try {
       await requestReprint({
         ticket_id: reprintTicket.id,
-        trace_no: reprintTicket.trace_no,
+        trace_no: reprintTicket.trace_no ?? '',
         reason: reprintReason,
         requested_copies: reprintCopies,
         notes: reprintNotes || undefined,
@@ -319,12 +381,39 @@ export default function TicketsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-          Tickets Management
-        </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-2">
-          View and manage all scanned tickets
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              Tickets Management
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 mt-2">
+              View and manage all scanned tickets
+            </p>
+          </div>
+          {showConnectionStatus && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <div className={`flex items-center gap-2 text-sm ${wsConnected ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                {wsConnected ? (
+                  <>
+                    <Wifi className="w-4 h-4 animate-pulse" />
+                    <span>Live Updates</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    <span>Offline Mode</span>
+                  </>
+                )}
+              </div>
+              <button
+                onClick={() => setShowConnectionStatus(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 ml-1"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Filter Builder */}
@@ -486,15 +575,37 @@ export default function TicketsPage() {
       {/* Tickets Table */}
       <Card className="border-slate-200 dark:border-slate-700">
         <CardHeader className="p-4 sm:p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
             <CardTitle className="text-base sm:text-lg">
               All Tickets 
               <span className="text-slate-500 font-normal ml-2">
                 ({filteredTickets.length}{filters.length > 0 ? ' filtered' : ''})
               </span>
             </CardTitle>
-            <div className="hidden md:block text-sm text-slate-500">
-              Page {currentPage} of {totalPages || 1}
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2 border border-slate-200 dark:border-slate-700 rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'table' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('table')}
+                  title="Table View"
+                  className="h-8 w-8 p-0"
+                >
+                  <LayoutList className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('grid')}
+                  title="Grid View"
+                  className="h-8 w-8 p-0"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="hidden md:block text-sm text-slate-500">
+                Page {currentPage} of {totalPages || 1}
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -505,197 +616,220 @@ export default function TicketsPage() {
             </div>
           ) : filteredTickets.length > 0 ? (
             <>
-              {/* Mobile Card View */}
-              <div className="md:hidden space-y-3">
-                {mobileTickets.map((ticket) => (
-                  <div
-                    key={ticket.id}
-                    className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded font-mono truncate">
-                            {ticket.trace_no}
-                          </code>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 mb-1">
-                          <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span className="truncate">{ticket.location}</span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {ticket.date}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {ticket.time}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-base font-bold text-green-600 dark:text-green-400">
-                          LKR {ticket.total_amount.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-slate-500 mt-0.5">
-                          {ticket.no_tickets} tickets
-                        </p>
-                      </div>
+              {/* Grid View */}
+              {viewMode === 'grid' && (
+                <div className="space-y-6">
+                  <TicketsGrid
+                    tickets={filteredTickets.slice(0, viewMode === 'grid' ? 50 : 10)}
+                    onViewTicket={setSelectedTicket}
+                    onReprintTicket={openReprintDialog}
+                  />
+                  {filteredTickets.length > 50 && (
+                    <div className="flex justify-center pt-4">
+                      <p className="text-sm text-slate-500">
+                        Showing 50 of {filteredTickets.length} tickets
+                      </p>
                     </div>
-                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-2"
-                        onClick={() => setSelectedTicket(ticket)}
+                  )}
+                </div>
+              )}
+
+              {/* Table View - Desktop */}
+              {viewMode === 'table' && (
+                <>
+                  {/* Mobile Card View */}
+                  <div className="md:hidden space-y-3">
+                    {mobileTickets.map((ticket) => (
+                      <div
+                        key={ticket.id}
+                        className="p-4 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50"
                       >
-                        <Eye className="w-4 h-4" />
-                        View
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 gap-2"
-                        onClick={() => openReprintDialog(ticket)}
-                      >
-                        <Printer className="w-4 h-4" />
-                        Reprint
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-
-                {/* Show More Button */}
-                {hasMoreMobileTickets && (
-                  <div className="pt-4">
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={loadMoreMobile}
-                    >
-                      Show More ({filteredTickets.length - mobileDisplayCount} remaining)
-                    </Button>
-                  </div>
-                )}
-
-                {/* Mobile count info */}
-                <p className="text-center text-xs text-slate-500 pt-2">
-                  Showing {mobileTickets.length} of {filteredTickets.length} tickets
-                </p>
-              </div>
-
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                      <TableHead className="font-semibold">Trace No</TableHead>
-                      <TableHead className="font-semibold">Date</TableHead>
-                      <TableHead className="font-semibold">Time</TableHead>
-                      <TableHead className="font-semibold">Terminal ID</TableHead>
-                      <TableHead className="font-semibold">Location</TableHead>
-                      <TableHead className="font-semibold text-right">Tickets</TableHead>
-                      <TableHead className="font-semibold text-right">Total Amount (LKR)</TableHead>
-                      <TableHead className="font-semibold text-right">Amount per Ticket</TableHead>
-                      <TableHead className="font-semibold">Created At</TableHead>
-                      <TableHead className="font-semibold text-center">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedTickets.map((ticket) => (
-                      <TableRow key={ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                        <TableCell>
-                          <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
-                            {ticket.trace_no}
-                          </code>
-                        </TableCell>
-                        <TableCell className="text-sm">{ticket.date}</TableCell>
-                        <TableCell className="text-sm">{ticket.time}</TableCell>
-                        <TableCell className="text-sm font-medium">{ticket.terminal_id}</TableCell>
-                        <TableCell className="text-sm">{ticket.location}</TableCell>
-                        <TableCell className="text-right font-medium">{ticket.no_tickets}</TableCell>
-                        <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">
-                          LKR {ticket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          LKR {ticket.ticket_amount_pp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-500">
-                          {new Date(ticket.created_at).toLocaleDateString()} {new Date(ticket.created_at).toLocaleTimeString()}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSelectedTicket(ticket)}
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openReprintDialog(ticket)}
-                              title="Request Reprint"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </Button>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <code className="text-xs bg-slate-200 dark:bg-slate-700 px-2 py-0.5 rounded font-mono truncate">
+                                {ticket.trace_no || 'N/A'}
+                              </code>
+                            </div>
+                            <div className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-400 mb-1">
+                              <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                              <span className="truncate">{ticket.location}</span>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {ticket.date}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {ticket.time}
+                              </span>
+                            </div>
                           </div>
-                        </TableCell>
-                      </TableRow>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-base font-bold text-green-600 dark:text-green-400">
+                              LKR {ticket.total_amount ? ticket.total_amount.toLocaleString() : '0'}
+                            </p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {ticket.no_tickets || 0} tickets
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-2"
+                            onClick={() => setSelectedTicket(ticket)}
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-2"
+                            onClick={() => openReprintDialog(ticket)}
+                          >
+                            <Printer className="w-4 h-4" />
+                            Reprint
+                          </Button>
+                        </div>
+                      </div>
                     ))}
-                  </TableBody>
-                </Table>
-              </div>
 
-              {/* Desktop Pagination */}
-              <div className="hidden md:flex items-center justify-between mt-6">
-                <div className="text-sm text-slate-600 dark:text-slate-400">
-                  Showing {offset + 1} to {Math.min(offset + limit, filteredTickets.length)} of {filteredTickets.length} tickets
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePrevious}
-                    disabled={offset === 0 || isLoading}
-                    className="gap-2"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    Previous
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleNext}
-                    disabled={offset + limit >= filteredTickets.length || isLoading}
-                    className="gap-2"
-                  >
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+                    {/* Show More Button */}
+                    {hasMoreMobileTickets && (
+                      <div className="pt-4">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={loadMoreMobile}
+                        >
+                          Show More ({filteredTickets.length - mobileDisplayCount} remaining)
+                        </Button>
+                      </div>
+                    )}
 
-              {/* Items per page selector - Desktop only */}
-              <div className="hidden md:flex mt-4 items-center gap-2 text-sm">
-                <label className="text-slate-600 dark:text-slate-400">Items per page:</label>
-                <select
-                  value={limit}
-                  onChange={(e) => {
-                    setLimit(Number(e.target.value));
-                    setOffset(0);
-                  }}
-                  className="px-3 py-1 border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
-                >
-                  <option value={5}>5</option>
-                  <option value={10}>10</option>
-                  <option value={20}>20</option>
-                  <option value={50}>50</option>
-                </select>
-              </div>
+                    {/* Mobile count info */}
+                    <p className="text-center text-xs text-slate-500 pt-2">
+                      Showing {mobileTickets.length} of {filteredTickets.length} tickets
+                    </p>
+                  </div>
+
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-slate-50 dark:bg-slate-800/50">
+                          <TableHead className="font-semibold">Trace No</TableHead>
+                          <TableHead className="font-semibold">Date</TableHead>
+                          <TableHead className="font-semibold">Time</TableHead>
+                          <TableHead className="font-semibold">Terminal ID</TableHead>
+                          <TableHead className="font-semibold">Location</TableHead>
+                          <TableHead className="font-semibold text-right">Tickets</TableHead>
+                          <TableHead className="font-semibold text-right">Total Amount (LKR)</TableHead>
+                          <TableHead className="font-semibold text-right">Amount per Ticket</TableHead>
+                          <TableHead className="font-semibold">Created At</TableHead>
+                          <TableHead className="font-semibold text-center">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {paginatedTickets.map((ticket) => (
+                          <TableRow key={ticket.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <TableCell>
+                              <code className="text-xs bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded font-mono">
+                                {ticket.trace_no || 'N/A'}
+                              </code>
+                            </TableCell>
+                            <TableCell className="text-sm">{ticket.date || 'N/A'}</TableCell>
+                            <TableCell className="text-sm">{ticket.time || 'N/A'}</TableCell>
+                            <TableCell className="text-sm font-medium">{ticket.terminal_id || 'N/A'}</TableCell>
+                            <TableCell className="text-sm">{ticket.location || 'N/A'}</TableCell>
+                            <TableCell className="text-right font-medium">{ticket.no_tickets || 0}</TableCell>
+                            <TableCell className="text-right font-semibold text-green-600 dark:text-green-400">
+                              LKR {ticket.total_amount ? ticket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              LKR {ticket.ticket_amount_pp ? ticket.ticket_amount_pp.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                            </TableCell>
+                            <TableCell className="text-sm text-slate-500">
+                              {ticket.created_at ? `${new Date(ticket.created_at).toLocaleDateString()} ${new Date(ticket.created_at).toLocaleTimeString()}` : 'N/A'}
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setSelectedTicket(ticket)}
+                                  title="View Details"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openReprintDialog(ticket)}
+                                  title="Request Reprint"
+                                >
+                                  <Printer className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  {/* Desktop Pagination */}
+                  <div className="hidden md:flex items-center justify-between mt-6">
+                    <div className="text-sm text-slate-600 dark:text-slate-400">
+                      Showing {offset + 1} to {Math.min(offset + limit, filteredTickets.length)} of {filteredTickets.length} tickets
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePrevious}
+                        disabled={offset === 0 || isLoading}
+                        className="gap-2"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNext}
+                        disabled={offset + limit >= filteredTickets.length || isLoading}
+                        className="gap-2"
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Items per page selector - Desktop only */}
+                  <div className="hidden md:flex mt-4 items-center gap-2 text-sm">
+                    <label className="text-slate-600 dark:text-slate-400">Items per page:</label>
+                    <select
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setOffset(0);
+                      }}
+                      className="px-3 py-1 border border-slate-200 dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <div className="flex items-center justify-center py-12 text-slate-500">
@@ -762,12 +896,12 @@ export default function TicketsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                   <p className="text-xs text-slate-500 mb-1">Number of Tickets</p>
-                  <p className="text-lg font-bold">{selectedTicket.no_tickets}</p>
+                  <p className="text-lg font-bold">{selectedTicket.no_tickets || 0}</p>
                 </div>
                 <div className="p-3 bg-green-50 dark:bg-green-950 rounded-lg">
                   <p className="text-xs text-green-600 dark:text-green-400 mb-1">Total Amount</p>
                   <p className="text-lg font-bold text-green-600 dark:text-green-400">
-                    LKR {selectedTicket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    LKR {selectedTicket.total_amount ? selectedTicket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                   </p>
                 </div>
               </div>
@@ -775,15 +909,14 @@ export default function TicketsPage() {
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Amount per Ticket</p>
                 <p className="text-sm font-medium">
-                  LKR {selectedTicket.ticket_amount_pp.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  LKR {selectedTicket.ticket_amount_pp ? selectedTicket.ticket_amount_pp.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                 </p>
               </div>
 
               <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg">
                 <p className="text-xs text-slate-500 mb-1">Created At</p>
                 <p className="text-sm font-medium">
-                  {new Date(selectedTicket.created_at).toLocaleDateString()}{' '}
-                  {new Date(selectedTicket.created_at).toLocaleTimeString()}
+                  {selectedTicket.created_at ? `${new Date(selectedTicket.created_at).toLocaleDateString()} ${new Date(selectedTicket.created_at).toLocaleTimeString()}` : 'N/A'}
                 </p>
               </div>
             </div>
@@ -812,7 +945,7 @@ export default function TicketsPage() {
                   <div className="text-right">
                     <p className="text-xs text-slate-500 mb-1">Total Amount</p>
                     <p className="text-sm font-bold text-green-600 dark:text-green-400">
-                      LKR {reprintTicket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      LKR {reprintTicket.total_amount ? reprintTicket.total_amount.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
                     </p>
                   </div>
                 </div>
